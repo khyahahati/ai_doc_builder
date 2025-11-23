@@ -4,28 +4,28 @@ uvicorn[standard]
 
 # --- Database & migrations ---
 sqlalchemy
-psycopg2-binary          # PostgreSQL driver (ok for dev & small prod)
-alembic                  # DB migrations (optional but recommended)
+psycopg2-binary          # PostgreSQL driver (safe for dev)
+alembic                  # optional but recommended for migrations
 
-# --- Data validation / settings ---
+# --- Data validation & environment ---
 pydantic
-python-dotenv            # for loading env vars from .env
+python-dotenv
 
 # --- Auth & security ---
-python-jose[cryptography]  # JWT handling
-passlib[bcrypt]            # password hashing
+python-jose[cryptography]
+passlib[bcrypt]
 
-# --- LLM Orchestration ---
+# --- Google Gemini (LLM) ---
+google-generativeai
+httpx                     # required for async transport
+
+# --- LangGraph workflow orchestration ---
 langgraph
 langchain-core
 
-# --- LLM Provider (OpenAI style API) ---
-openai
-httpx                     # HTTP client (used by many LLM libs)
-
 # --- Document generation ---
-python-docx               # .docx export
-python-pptx               # .pptx export
+python-docx
+python-pptx
 
 # --- Utilities ---
 typing-extensions
