@@ -1,0 +1,31 @@
+# --- Web framework & server ---
+fastapi
+uvicorn[standard]
+
+# --- Database & migrations ---
+sqlalchemy
+psycopg2-binary          # PostgreSQL driver (ok for dev & small prod)
+alembic                  # DB migrations (optional but recommended)
+
+# --- Data validation / settings ---
+pydantic
+python-dotenv            # for loading env vars from .env
+
+# --- Auth & security ---
+python-jose[cryptography]  # JWT handling
+passlib[bcrypt]            # password hashing
+
+# --- LLM Orchestration ---
+langgraph
+langchain-core
+
+# --- LLM Provider (OpenAI style API) ---
+openai
+httpx                     # HTTP client (used by many LLM libs)
+
+# --- Document generation ---
+python-docx               # .docx export
+python-pptx               # .pptx export
+
+# --- Utilities ---
+typing-extensions
