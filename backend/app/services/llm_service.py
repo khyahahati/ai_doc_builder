@@ -6,7 +6,7 @@ import google.generativeai as genai
 import json
 
 # ✅ LOCAL KEY — do NOT commit to GitHub
-GENAI_API_KEY = "AIzaSyAwKlhbom7P-q0xjeE-k7KLwEiVNspJMaY"
+GENAI_API_KEY = "AIzaSyBQyqfzfAV51FGBIQNc4nsOybjQ2jRsG-c"
 
 genai.configure(api_key=GENAI_API_KEY)
 
