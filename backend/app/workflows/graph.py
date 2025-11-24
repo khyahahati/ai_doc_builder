@@ -1,6 +1,11 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
+
 from langgraph.graph import StateGraph, END
-from .state import SectionState
-from .nodes import generate_content, evaluate_content, refine_content
+from ai_doc_builder.backend.app.workflows.state import SectionState
+from ai_doc_builder.backend.app.workflows.nodes import generate_content, evaluate_content, refine_content
 
 
 def decision_router(state: SectionState):

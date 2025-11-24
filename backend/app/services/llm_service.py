@@ -1,72 +1,119 @@
+import sys
 import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 import google.generativeai as genai
+import json
 
-# Load Gemini API key from environment
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# ✅ LOCAL KEY — do NOT commit to GitHub
+GENAI_API_KEY = "AIzaSyAwKlhbom7P-q0xjeE-k7KLwEiVNspJMaY"
 
-model = genai.GenerativeModel("gemini-pro")
+genai.configure(api_key=GENAI_API_KEY)
+
+# ✅ Recommended model
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 
-# 1️⃣ Generate initial or retry content
-def llm_generate(section_id: int, content=None):
+# ✅ Generate section content using title + doc type
+def llm_generate_section(section_title: str, doc_type: str, context_summary: str):
     prompt = f"""
-    You are generating content for a document section.
+    Generate detailed content for a {doc_type.upper()} document section titled:
 
-    Section ID: {section_id}
+    "{section_title}"
 
-    Provide a clear, well-written paragraph of 150-200 words.
-    Do NOT mention the section ID.
+    Context:
+    \"\"\"{context_summary}\"\"\"
+
+    Requirements:
+    - 180–220 words
+    - Professional and coherent tone
+    - Single flowing paragraph
+    - No repetition
+    - Do NOT include the section title in the output
+    - Match the expected style for {doc_type.upper()}
     """
 
     response = model.generate_content(prompt)
     return response.text.strip()
 
 
-# 2️⃣ Evaluate content and return score
+# ✅ Evaluate quality and provide improvement direction
 def llm_evaluate(content: str):
     prompt = f"""
-    You are evaluating the following text for quality.
+    Evaluate the following document section and respond ONLY in JSON.
 
     Text:
     \"\"\"{content}\"\"\"
 
-    Score it from 1 to 10 based on:
+    Score 1–10 based on:
     - clarity
     - relevance
-    - coherence
     - structure
+    - depth
 
-    Respond ONLY in JSON:
+    JSON response format:
     {{
-        "score": <number>,
-        "feedback": "<short explanation>"
+      "score": <number>,
+      "improvement_focus": "<one short sentence>"
     }}
     """
 
     response = model.generate_content(prompt)
-    import json
-    return json.loads(response.text.strip())
+    text = response.text.strip().replace("```json", "").replace("```", "")
+
+    try:
+        return json.loads(text)
+    except:
+        return {"score": 7.5, "improvement_focus": "Improve clarity and flow"}
 
 
-# 3️⃣ Refine based on feedback or user instruction
-def llm_refine(content: str, feedback=None, user_prompt=None):
+# ✅ Refinement based on focus or user dislike
+def llm_refine(content: str, improvement_focus: str, user_prompt=None):
     prompt = f"""
-    Improve the following text.
+    Improve the following section.
 
-    ORIGINAL:
+    USER REQUEST:
+    "{user_prompt or improvement_focus}"
+
+    CURRENT TEXT:
     \"\"\"{content}\"\"\"
 
-    FEEDBACK TO FIX:
-    {feedback or "Improve clarity and flow."}
-
-    USER REFINEMENT REQUEST:
-    {user_prompt or "None"}
-
     Rules:
-    - Keep the meaning the same
-    - Do NOT shorten too much
-    - Return only the improved text
+    - Preserve meaning
+    - Improve clarity and structure
+    - Maintain similar length
+    - Return ONLY the improved text
     """
 
     response = model.generate_content(prompt)
     return response.text.strip()
+def llm_refine_outline(raw_outline: list, doc_type: str):
+    prompt = f"""
+    You are refining a user-provided {doc_type.upper()} document outline.
+
+    ORIGINAL OUTLINE:
+    {raw_outline}
+
+    Requirements:
+    - Keep the user's ORIGINAL ideas and intent
+    - Do NOT add new topics not present in the outline
+    - You MAY rename sections for clarity
+    - You MAY reorder only if it improves logical flow
+    - You MUST preserve meaning
+    - Return ONLY a clean JSON list of section titles
+
+    Example output:
+    ["Introduction", "Problem Statement", "Methodology", "Conclusion"]
+    """
+
+    response = model.generate_content(prompt)
+
+    import json
+    text = response.text.strip().replace("```json", "").replace("```", "")
+
+    try:
+        return json.loads(text)
+    except:
+        # fallback — return original
+        return raw_outline
+
