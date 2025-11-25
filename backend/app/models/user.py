@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.sql import func
+from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
-from backend.app.db import Base
+from ..db import Base
 
 
 class User(Base):
@@ -14,5 +14,5 @@ class User(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
-    # 🔗 one user → many projects
-    projects = relationship("Project", back_populates="owner")
+    # one user → many projects
+    projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")

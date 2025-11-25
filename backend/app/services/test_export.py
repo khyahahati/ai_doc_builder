@@ -1,12 +1,6 @@
-import sys
-import os
-
-# ✅ ensure project root is in import path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
-
-from ai_doc_builder.backend.app.workflows.graph import graph
-from ai_doc_builder.backend.app.workflows.state import SectionState
-from ai_doc_builder.backend.app.services.export_service import export_to_docx, export_to_pptx
+from .export_service import export_to_docx, export_to_pptx
+from ..workflows.graph import DEFAULT_GRAPH_CONFIG, graph
+from ..workflows.state import SectionState
 
 
 def generate_full_document(project_title: str, doc_type: str, outline: list):
@@ -26,7 +20,7 @@ def generate_full_document(project_title: str, doc_type: str, outline: list):
             context_summary=f"Document Title: {project_title}"
         )
 
-        final_state = graph.invoke(state)
+        final_state = graph.invoke(state, config=DEFAULT_GRAPH_CONFIG)
 
         full_content[section_title] = final_state["content"]
 
@@ -36,14 +30,14 @@ def generate_full_document(project_title: str, doc_type: str, outline: list):
 
 
 def run_test():
-    project_title = "AI in Healthcare"
-    doc_type = "docx"  # ✅ change to "pptx" if needed
+    project_title = input("Enter Project Title: ") 
+    doc_type = input("Enter Document Type (docx or pptx): ")
 
     outline = [
         "Introduction",
-        "Challenges in Healthcare",
-        "Role of AI",
-        "Future Scope",
+        "Problem Statement",
+        "Proposed Solution",
+        "Implementation Plan",
         "Conclusion"
     ]
 

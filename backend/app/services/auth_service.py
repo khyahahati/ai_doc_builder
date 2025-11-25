@@ -1,8 +1,8 @@
-from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
-from backend.app.models.user import User
+from ..models.user import User
 
 # ----------------------------------------------------
 # Password hashing (bcrypt)
@@ -39,6 +39,6 @@ def create_user(db: Session, email: str, password: str):
 
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)        # ← missing line added
+    db.refresh(new_user)        # ensure we get id and created_at
 
-    return new_user             # ← return user
+    return new_user

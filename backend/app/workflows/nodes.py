@@ -1,13 +1,9 @@
-import sys
-import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
-from ai_doc_builder.backend.app.workflows.state import SectionState
-from ai_doc_builder.backend.app.services.llm_service import (
-    llm_refine_outline,
-    llm_generate_section,
+from .state import SectionState
+from ..services.llm_service import (
     llm_evaluate,
-    llm_refine
+    llm_generate_section,
+    llm_refine,
+    llm_refine_outline,
 )
 
 # ✅ NEW — refine user outline BEFORE content generation

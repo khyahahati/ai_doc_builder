@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, Float, DateTime
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from ai_doc_builder.backend.app.db import Base
+
+from ..db import Base
 
 
 class Revision(Base):

@@ -1,7 +1,7 @@
-# backend/app/schemas/section.py
-from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 # ---------- Base section shape ----------
@@ -23,8 +23,7 @@ class SectionResponse(SectionBase):
     status: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ---------- Outline input from user ----------

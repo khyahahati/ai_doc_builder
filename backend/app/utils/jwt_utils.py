@@ -1,6 +1,7 @@
-import jwt
 from datetime import datetime, timedelta
+
 from fastapi import HTTPException, status
+from jose import jwt
 
 # ---------------------------------------------
 # JWT CONFIG

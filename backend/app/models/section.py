@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from ai_doc_builder.backend.app.db import Base
+
+from ..db import Base
 
 
 class Section(Base):
@@ -17,6 +19,7 @@ class Section(Base):
 
     created_at = Column(DateTime, server_default=func.now())
 
+    # relationships
     project = relationship("Project", back_populates="sections")
     revisions = relationship(
         "Revision",

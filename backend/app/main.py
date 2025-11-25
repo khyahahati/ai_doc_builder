@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, projects, sections
-from app.db import init_db
+from .db import init_db
+from .routers import auth, projects, sections
 
 app = FastAPI(
     title="AI Document Builder",
@@ -31,6 +31,6 @@ def root():
 
 
 # ---- Register routers ----
-app.include_router(auth.router, prefix="/auth", tags=["Auth"])
-app.include_router(projects.router, prefix="/projects", tags=["Projects"])
-app.include_router(sections.router, prefix="/sections", tags=["Sections"])
+app.include_router(auth.router)
+app.include_router(projects.router)
+app.include_router(sections.router)

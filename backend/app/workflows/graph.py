@@ -1,11 +1,7 @@
-import sys
-import os
+from langgraph.graph import END, StateGraph
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
-
-from langgraph.graph import StateGraph, END
-from ai_doc_builder.backend.app.workflows.state import SectionState
-from ai_doc_builder.backend.app.workflows.nodes import generate_content, evaluate_content, refine_content
+from .nodes import evaluate_content, generate_content, refine_content
+from .state import SectionState
 
 
 def decision_router(state: SectionState):
@@ -51,3 +47,5 @@ workflow.add_conditional_edges(
 workflow.add_edge("refine_content", "evaluate_content")
 
 graph = workflow.compile()
+
+DEFAULT_GRAPH_CONFIG = {"recursion_limit": 100}

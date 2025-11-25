@@ -1,12 +1,9 @@
-import sys
-import os
 import json
+
 import google.generativeai as genai
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
-
 # ✅ LOCAL KEY — do NOT commit to GitHub
-GENAI_API_KEY = "AIzaSyAwKlhbom7P-q0xjeE-k7KLwEiVNspJMaY"
+GENAI_API_KEY = "AIzaSyAx_wBwzSF33EQkYCz4KI_gc6Q2kDCLAIM"
 
 genai.configure(api_key=GENAI_API_KEY)
 

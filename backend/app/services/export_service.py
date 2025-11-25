@@ -1,10 +1,11 @@
 import os
 from datetime import datetime
+
 from docx import Document
 from pptx import Presentation
 
 
-EXPORT_DIR = "exports"
+EXPORT_DIR = os.path.join(os.path.dirname(__file__), "exports")
 
 # ✅ ensure export folder exists
 os.makedirs(EXPORT_DIR, exist_ok=True)

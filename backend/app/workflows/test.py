@@ -1,11 +1,5 @@
-import sys
-import os
-
-# ✅ Ensure correct project imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
-
-from ai_doc_builder.backend.app.workflows.graph import graph
-from ai_doc_builder.backend.app.workflows.state import SectionState
+from .graph import DEFAULT_GRAPH_CONFIG, graph
+from .state import SectionState
 
 
 def run_full_document_test():
@@ -46,7 +40,7 @@ def run_full_document_test():
             context_summary=f"Document Title: {title}",
         )
 
-        final_state = graph.invoke(state)
+        final_state = graph.invoke(state, config=DEFAULT_GRAPH_CONFIG)
 
         full_document[section_title] = final_state["content"]
 

@@ -12,6 +12,11 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
 
+# Creates all tables based on the SQLAlchemy models.
+def init_db() -> None:
+    Base.metadata.create_all(bind=engine)
+
+
 # ✅ Dependency used inside API routes
 def get_db():
     db = SessionLocal()
