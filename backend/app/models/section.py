@@ -16,3 +16,10 @@ class Section(Base):
     status = Column(String, default="pending")  # pending | generated | refined
 
     created_at = Column(DateTime, server_default=func.now())
+
+    project = relationship("Project", back_populates="sections")
+    revisions = relationship(
+        "Revision",
+        back_populates="section",
+        cascade="all, delete-orphan"
+    )

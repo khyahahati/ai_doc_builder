@@ -14,3 +14,5 @@ class Revision(Base):
 
     score = Column(Float, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+
+    section = relationship("Section", back_populates="revisions")

@@ -1,11 +1,14 @@
 import sys
 import os
 
-# ✅ ensure project root is in import path
+# Ensure project root is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
-from sqlalchemy import Column, Integer, String, DateTime
+
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.sql import func
-from ai_doc_builder.backend.app.db import Base
+from sqlalchemy.orm import relationship
+
+from backend.app.db import Base
 
 
 class Project(Base):
@@ -14,4 +17,16 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     doc_type = Column(String, nullable=False)   # "docx" or "pptx"
+
+    # Link to the user who owns this project
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
     created_at = Column(DateTime, server_default=func.now())
+
+    # Relationships
+    owner = relationship("User", back_populates="projects")
+    sections = relationship(
+        "Section",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
