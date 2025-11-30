@@ -29,16 +29,30 @@ def hash_password(password: str) -> str:
     """
     Hash password after enforcing bcrypt's 72-byte limit.
     """
+    if not isinstance(password, str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be a string")
+
     safe_pw = _normalize_password(password)
-    return pwd_context.hash(safe_pw)
+    try:
+        return pwd_context.hash(safe_pw)
+    except ValueError as exc:
+        # Re-raise as HTTPException with a clearer message for the API client
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify password using the same normalization rules.
     """
+    if not isinstance(plain_password, str):
+        return False
+
     safe_pw = _normalize_password(plain_password)
-    return pwd_context.verify(safe_pw, hashed_password)
+    try:
+        return pwd_context.verify(safe_pw, hashed_password)
+    except ValueError:
+        # Any backend/value error treated as verification failure
+        return False
 
 
 # ----------------------------------------------------
@@ -54,6 +68,15 @@ def create_user(db: Session, email: str, password: str):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered."
+        )
+
+    # Defensive: ensure password is a string and within bcrypt's 72-byte limit.
+    if not isinstance(password, str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be a string.")
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password too long. Maximum length is 72 bytes when encoded as UTF-8."
         )
 
     # Hash password safely

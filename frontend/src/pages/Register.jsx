@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+import api from "../api";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -22,60 +21,22 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const registerResponse = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-        }),
-      });
+  await api.postJSON("/auth/register", { email: email.trim(), password });
 
-      const registerData = await registerResponse.json().catch(() => null);
-      if (!registerResponse.ok) {
-        const message = (typeof registerData === "object" && registerData?.detail) || "Unable to create your account.";
-        throw new Error(message);
-      }
+  const loginPayload = new URLSearchParams();
+  loginPayload.append("username", email.trim());
+  loginPayload.append("password", password);
 
-      const loginPayload = new URLSearchParams();
-      loginPayload.append("username", email.trim());
-      loginPayload.append("password", password);
-
-      const loginResponse = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: loginPayload.toString(),
-      });
-
-      const loginData = await loginResponse.json().catch(() => null);
-      if (!loginResponse.ok) {
-        const message = (typeof loginData === "object" && loginData?.detail) || "Account created, but automatic login failed.";
-        throw new Error(message);
-      }
-
-      const accessToken = loginData?.access_token;
+  const loginData = await api.postForm("/auth/login", loginPayload);
+  const accessToken = loginData?.access_token;
       if (!accessToken) {
         throw new Error("Missing token after registration.");
       }
 
       localStorage.setItem("accessToken", accessToken);
 
-      const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (profileResponse.ok) {
-        const profile = await profileResponse.json().catch(() => null);
-        if (profile) {
-          localStorage.setItem("currentUser", JSON.stringify(profile));
-        }
-      }
+  const profile = await api.get("/auth/me", accessToken).catch(() => null);
+  if (profile) localStorage.setItem("currentUser", JSON.stringify(profile));
 
       navigate("/dashboard");
     } catch (err) {

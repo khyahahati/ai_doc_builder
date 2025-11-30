@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+import api from "../api";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,39 +25,16 @@ export default function Login() {
       payload.append("username", email.trim());
       payload.append("password", password);
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: payload.toString(),
-      });
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = (typeof data === "object" && data?.detail) || "Unable to log in with those credentials.";
-        throw new Error(message);
-      }
-
-      const accessToken = data?.access_token;
+  const data = await api.postForm("/auth/login", payload);
+  const accessToken = data?.access_token;
       if (!accessToken) {
         throw new Error("Authentication token missing from response.");
       }
 
       localStorage.setItem("accessToken", accessToken);
 
-      const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (profileResponse.ok) {
-        const profile = await profileResponse.json().catch(() => null);
-        if (profile) {
-          localStorage.setItem("currentUser", JSON.stringify(profile));
-        }
-      }
+  const profile = await api.get("/auth/me", accessToken).catch(() => null);
+  if (profile) localStorage.setItem("currentUser", JSON.stringify(profile));
 
       navigate("/dashboard");
     } catch (err) {

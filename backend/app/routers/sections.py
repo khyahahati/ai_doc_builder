@@ -18,8 +18,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 class RefineIn(BaseModel):
-    feedback: Optional[str] = None   # "like" or "dislike" or None
+    feedback: Optional[str] = None   # "like" or "dislike" or "generate" or "like"
     user_prompt: Optional[str] = None
+    persist: Optional[bool] = True
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -54,12 +55,19 @@ def get_section(section_id: int, db: Session = Depends(get_db), token: str = Dep
     return {"id": sec.id, "title": sec.title, "content": sec.content, "version": sec.version, "status": sec.status}
 
 
+from google.api_core import exceptions as google_exceptions  # add to top of file near other imports
+import logging
+
+logger = logging.getLogger(__name__)
+
 @router.post("/sections/{section_id}/refine")
 def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     """
-    Refine a section using the LangGraph workflow and Gemini. The body may contain:
-    - feedback: "like" or "dislike"
-    - user_prompt: instruction for refinement
+    Refine a section using the LangGraph workflow and Gemini.
+    Body may contain:
+      - feedback: "like" | "dislike" | "generate"
+      - user_prompt: optional instruction overriding stored summary/guidance
+      - persist: bool (if True, save the generated content into DB)
     """
     payload = verify_access_token(token)
     user_id = payload.get("user_id")
@@ -71,17 +79,49 @@ def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db
     if not proj or proj.owner_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Build the state and set feedback / prompt
+    # Build context (prefer explicit user_prompt; then stored summary/guidance; finally existing content)
+    context_parts = []
+    if body.user_prompt and str(body.user_prompt).strip():
+        context_parts.append(str(body.user_prompt).strip())
+    else:
+        if hasattr(sec, "summary") and sec.summary:
+            context_parts.append(str(sec.summary).strip())
+        if hasattr(sec, "guidance") and sec.guidance:
+            context_parts.append("Guidance: " + str(sec.guidance).strip())
+        if not context_parts and sec.content:
+            preview = sec.content if len(sec.content) <= 2000 else sec.content[:2000]
+            context_parts.append("Current content: " + preview)
+
+    combined_context = "\n\n".join(context_parts).strip()
+
+    # Build state for LangGraph
     state = SectionState(
         section_id=sec.id,
         section_title=sec.title,
         doc_type=proj.doc_type,
         content=sec.content,
+        context_summary=combined_context,
         user_prompt=body.user_prompt,
         user_feedback=body.feedback or "pending"
     )
 
-    result = graph.invoke(state, config=DEFAULT_GRAPH_CONFIG)
+    # debug print
+    try:
+        logger.debug("=== CONTEXT SUMMARY SENT TO MODEL ===\n%s\n=== END CONTEXT ===", combined_context[:1600])
+    except Exception:
+        pass
+
+    # Invoke workflow exactly once and handle LLM errors
+    try:
+        result = graph.invoke(state, config=DEFAULT_GRAPH_CONFIG)
+    except Exception as e:
+        # If it's a quota / rate-limit type error from Google client, surface it clearly
+        if isinstance(e, google_exceptions.ResourceExhausted):
+            logger.warning("LLM quota exhausted: %s", e)
+            raise HTTPException(status_code=503, detail="LLM quota exhausted — try again later.")
+        logger.exception("Workflow invocation failed")
+        raise HTTPException(status_code=500, detail="Generation failed")
+
     if isinstance(result, dict):
         final_content = result.get("content")
         version = result.get("version", sec.version + 1)
@@ -91,19 +131,30 @@ def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db
         version = result.version
         score = result.score
 
-    # save revision
-    rev = Revision(section_id=sec.id, version=version, content=final_content, score=score)
-    db.add(rev)
+    persist_flag = bool(getattr(body, "persist", True))
 
-    # update section
-    sec.content = final_content
-    sec.version = version
-    sec.status = "refined"
-    db.add(sec)
-    db.commit()
-    db.refresh(sec)
+    if not persist_flag:
+        # Return preview only — do not save revision or update DB
+        return {"id": sec.id, "content": final_content, "version": version, "score": score, "persisted": False}
 
-    return {"id": sec.id, "content": sec.content, "version": sec.version, "score": score}
+    # Persist: create revision and update section (existing behavior)
+    try:
+        rev = Revision(section_id=sec.id, version=version, content=final_content, score=score)
+        db.add(rev)
+
+        sec.content = final_content
+        sec.version = version
+        sec.status = "refined"
+        db.add(sec)
+        db.commit()
+        db.refresh(sec)
+    except Exception:
+        logger.exception("Failed to persist refined content")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save refined content")
+
+    return {"id": sec.id, "content": sec.content, "version": sec.version, "score": score, "persisted": True}
+
 
 
 @router.get("/sections/{section_id}/revisions")

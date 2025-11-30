@@ -10,13 +10,14 @@ alembic==1.13.1
 psycopg2-binary==2.9.9   # Only needed for PostgreSQL. SQLite works without any driver.
 
 # --- Pydantic / Validation ---
-pydantic==2.5.3
+pydantic>=2.7.4,<3.0.0
 pydantic-settings==2.2.1
 python-dotenv==1.0.1
 
 # --- Auth & Security ---
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
 
 # --- Google Gemini (LLM) ---
 google-generativeai==0.3.2
@@ -32,3 +33,7 @@ python-pptx==0.6.21
 
 # --- Utilities ---
 typing-extensions==4.10.0
+
+email-validator
+
+python-multipart
