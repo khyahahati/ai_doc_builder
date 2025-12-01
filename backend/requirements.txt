@@ -1,31 +1,39 @@
 # --- Web framework & server ---
-fastapi
-uvicorn[standard]
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
 
-# --- Database & migrations ---
-sqlalchemy
-psycopg2-binary          # PostgreSQL driver (safe for dev)
-alembic                  # optional but recommended for migrations
+# --- Database & ORM ---
+sqlalchemy==2.0.28
+alembic==1.13.1
 
-# --- Data validation & environment ---
-pydantic
-python-dotenv
+# --- DB drivers ---
+psycopg2-binary==2.9.9   # Only needed for PostgreSQL. SQLite works without any driver.
 
-# --- Auth & security ---
-python-jose[cryptography]
-passlib[bcrypt]
+# --- Pydantic / Validation ---
+pydantic>=2.7.4,<3.0.0
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+
+# --- Auth & Security ---
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
 
 # --- Google Gemini (LLM) ---
-google-generativeai
-httpx                     # required for async transport
+google-generativeai==0.3.2
+httpx==0.26.0
 
-# --- LangGraph workflow orchestration ---
-langgraph
-langchain-core
+# --- LangGraph + LangChain Core ---
+langgraph>=0.1.35,<2.0.0
+langchain-core>=0.2.43,<0.4.0
 
 # --- Document generation ---
-python-docx
-python-pptx
+python-docx==1.0.1
+python-pptx==0.6.21
 
 # --- Utilities ---
-typing-extensions
+typing-extensions==4.10.0
+
+email-validator
+
+python-multipart

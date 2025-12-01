@@ -1,6 +1,7 @@
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
+
+from .nodes import evaluate_content, generate_content, refine_content
 from .state import SectionState
-from .nodes import generate_content, evaluate_content, refine_content
 
 
 def decision_router(state: SectionState):
@@ -46,3 +47,5 @@ workflow.add_conditional_edges(
 workflow.add_edge("refine_content", "evaluate_content")
 
 graph = workflow.compile()
+
+DEFAULT_GRAPH_CONFIG = {"recursion_limit": 100}
