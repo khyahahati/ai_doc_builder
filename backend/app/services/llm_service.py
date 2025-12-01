@@ -3,7 +3,7 @@ import json
 import google.generativeai as genai
 
 # ✅ LOCAL KEY — do NOT commit to GitHub
-GENAI_API_KEY = "AIzaSyAx_wBwzSF33EQkYCz4KI_gc6Q2kDCLAIM"
+GENAI_API_KEY = "AIzaSyCfvCVgAbUsMzk6SDqOdMs-ZohlgkQ5dFI"
 
 genai.configure(api_key=GENAI_API_KEY)
 
@@ -102,24 +102,32 @@ def llm_refine(content: str, improvement_focus: str, user_prompt: str = None) ->
     Returns:
         str: Refined text.
     """
+    focus = (user_prompt or improvement_focus or "").strip() or "Improve clarity, structure, and conciseness."
+
     prompt = f"""
-    Improve the following section.
+You are revising a document section. Your job is to MODIFY the text so that it clearly responds to the REVISION REQUEST.
 
-    USER REQUEST:
-    "{user_prompt or improvement_focus}"
+REVISION REQUEST:
+\"\"\"{focus}\"\"\"
 
-    CURRENT TEXT:
-    \"\"\"{content}\"\"\"
+CURRENT TEXT:
+\"\"\"{content}\"\"\"
 
-    Rules:
-    - Preserve meaning
-    - Improve clarity and structure
-    - Maintain similar length
-    - Return only the improved text
-    """
+Rewrite the CURRENT TEXT according to the request above.
+
+Very important requirements:
+- You MUST change the wording in a meaningful way; do NOT return the original text unchanged.
+- Keep the same core meaning and key facts.
+- Improve clarity, structure, and flow **specifically** in line with the revision request.
+- Keep roughly the same length (+/- 15%).
+- Avoid repeating entire sentences verbatim unless they are technical terms or names.
+- The changes should be clearly noticeable to a human reader.
+- Return ONLY the revised text, with no explanations, no bullet points, no markdown.
+"""
 
     response = model.generate_content(prompt)
     return response.text.strip()
+
 
 
 def llm_refine_outline(raw_outline: list, doc_type: str) -> list:

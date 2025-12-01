@@ -12,15 +12,21 @@ from ..models.section import Section
 from ..utils.jwt_utils import verify_access_token
 from ..workflows.graph import DEFAULT_GRAPH_CONFIG, graph
 from ..workflows.state import SectionState
+from ..services.llm_service import llm_refine
+from google.api_core import exceptions as google_exceptions
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Sections"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 class RefineIn(BaseModel):
-    feedback: Optional[str] = None   # "like" or "dislike" or "generate" or "like"
+    feedback: Optional[str] = None   # "like" | "dislike" | "generate"
     user_prompt: Optional[str] = None
     persist: Optional[bool] = True
+    current_content: Optional[str] = None 
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -61,16 +67,22 @@ import logging
 logger = logging.getLogger(__name__)
 
 @router.post("/sections/{section_id}/refine")
-def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+def refine_section(
+    section_id: int,
+    body: RefineIn,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
     """
-    Refine a section using the LangGraph workflow and Gemini.
-    Body may contain:
-      - feedback: "like" | "dislike" | "generate"
-      - user_prompt: optional instruction overriding stored summary/guidance
-      - persist: bool (if True, save the generated content into DB)
+    Handle three flows:
+
+    - feedback = "generate": full LangGraph workflow (generate + auto-refine).
+    - feedback = "dislike": single refinement pass using llm_refine (no graph loop).
+    - feedback = "like": no LLM, just persist current content if persist=True.
     """
     payload = verify_access_token(token)
     user_id = payload.get("user_id")
+
     sec = db.query(Section).filter(Section.id == section_id).first()
     if not sec:
         raise HTTPException(status_code=404, detail="Section not found")
@@ -79,22 +91,114 @@ def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db
     if not proj or proj.owner_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Build context (prefer explicit user_prompt; then stored summary/guidance; finally existing content)
+    # safety default
+    persist_flag = bool(getattr(body, "persist", True))
+    feedback = (body.feedback or "generate").lower()
+
+    # -------------------------
+    # 1) LOOKS GOOD / LIKE
+    # -------------------------
+    if feedback == "like":
+        # Use the latest content coming from the UI if provided
+        content_to_save = (body.current_content or sec.content or "")
+
+        if persist_flag:
+            try:
+                version = sec.version + 1
+                rev = Revision(
+                    section_id=sec.id,
+                    version=version,
+                    content=content_to_save,
+                    score=None,
+                )
+                db.add(rev)
+
+                sec.content = content_to_save
+                sec.version = version
+                sec.status = "refined"
+                db.add(sec)
+                db.commit()
+                db.refresh(sec)
+            except Exception:
+                db.rollback()
+                logger.exception("Failed to persist 'like' content")
+                raise HTTPException(status_code=500, detail="Failed to save approved content")
+
+        return {
+            "id": sec.id,
+            "content": content_to_save,
+            "version": sec.version,
+            "score": None,
+            "persisted": persist_flag,
+        }
+
+    # -------------------------
+    # 2) NEEDS CHANGES / DISLIKE
+    # -------------------------
+    if feedback == "dislike":
+        # Base text: prefer current content from UI, fall back to DB
+        base_text = (body.current_content or sec.content or "")
+        user_instruction = body.user_prompt or "Improve clarity and structure while preserving meaning."
+
+        try:
+            refined = llm_refine(
+                content=base_text,
+                improvement_focus=user_instruction,
+                user_prompt=user_instruction,
+            )
+        except google_exceptions.ResourceExhausted:
+            logger.warning("LLM quota exhausted on dislike-refine")
+            raise HTTPException(status_code=503, detail="LLM quota exhausted — try again later.")
+        except Exception:
+            logger.exception("llm_refine failed on dislike")
+            raise HTTPException(status_code=500, detail="Refinement failed")
+
+        if persist_flag:
+            try:
+                version = sec.version + 1
+                rev = Revision(
+                    section_id=sec.id,
+                    version=version,
+                    content=refined,
+                    score=None,
+                )
+                db.add(rev)
+
+                sec.content = refined
+                sec.version = version
+                sec.status = "refined"
+                db.add(sec)
+                db.commit()
+                db.refresh(sec)
+            except Exception:
+                db.rollback()
+                logger.exception("Failed to persist refined content for dislike")
+                raise HTTPException(status_code=500, detail="Failed to save refined content")
+
+        # If not persisting, still return the refined text so the editor updates
+        return {
+            "id": sec.id,
+            "content": refined,
+            "version": sec.version + (1 if persist_flag else 0),
+            "score": None,
+            "persisted": persist_flag,
+        }
+
+
+    # -------------------------
+    # 3) GENERATE / DEFAULT → use LangGraph
+    # -------------------------
+
+    # Build context (same as before)
     context_parts = []
     if body.user_prompt and str(body.user_prompt).strip():
         context_parts.append(str(body.user_prompt).strip())
-    else:
-        if hasattr(sec, "summary") and sec.summary:
-            context_parts.append(str(sec.summary).strip())
-        if hasattr(sec, "guidance") and sec.guidance:
-            context_parts.append("Guidance: " + str(sec.guidance).strip())
-        if not context_parts and sec.content:
-            preview = sec.content if len(sec.content) <= 2000 else sec.content[:2000]
-            context_parts.append("Current content: " + preview)
+    elif sec.content:
+        preview = sec.content if len(sec.content) <= 2000 else sec.content[:2000]
+        context_parts.append("Current content: " + preview)
 
     combined_context = "\n\n".join(context_parts).strip()
 
-    # Build state for LangGraph
     state = SectionState(
         section_id=sec.id,
         section_title=sec.title,
@@ -102,24 +206,16 @@ def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db
         content=sec.content,
         context_summary=combined_context,
         user_prompt=body.user_prompt,
-        user_feedback=body.feedback or "pending"
+        user_feedback="pending",
     )
 
-    # debug print
-    try:
-        logger.debug("=== CONTEXT SUMMARY SENT TO MODEL ===\n%s\n=== END CONTEXT ===", combined_context[:1600])
-    except Exception:
-        pass
-
-    # Invoke workflow exactly once and handle LLM errors
     try:
         result = graph.invoke(state, config=DEFAULT_GRAPH_CONFIG)
-    except Exception as e:
-        # If it's a quota / rate-limit type error from Google client, surface it clearly
-        if isinstance(e, google_exceptions.ResourceExhausted):
-            logger.warning("LLM quota exhausted: %s", e)
-            raise HTTPException(status_code=503, detail="LLM quota exhausted — try again later.")
-        logger.exception("Workflow invocation failed")
+    except google_exceptions.ResourceExhausted:
+        logger.warning("LLM quota exhausted on generate")
+        raise HTTPException(status_code=503, detail="LLM quota exhausted — try again later.")
+    except Exception:
+        logger.exception("Workflow invocation failed on generate")
         raise HTTPException(status_code=500, detail="Generation failed")
 
     if isinstance(result, dict):
@@ -131,29 +227,44 @@ def refine_section(section_id: int, body: RefineIn, db: Session = Depends(get_db
         version = result.version
         score = result.score
 
-    persist_flag = bool(getattr(body, "persist", True))
+    if persist_flag:
+        try:
+            rev = Revision(
+                section_id=sec.id,
+                version=version,
+                content=final_content,
+                score=score,
+            )
+            db.add(rev)
 
-    if not persist_flag:
-        # Return preview only — do not save revision or update DB
-        return {"id": sec.id, "content": final_content, "version": version, "score": score, "persisted": False}
+            sec.content = final_content
+            sec.version = version
+            sec.status = "refined"
+            db.add(sec)
+            db.commit()
+            db.refresh(sec)
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to persist generated content")
+            raise HTTPException(status_code=500, detail="Failed to save generated content")
 
-    # Persist: create revision and update section (existing behavior)
-    try:
-        rev = Revision(section_id=sec.id, version=version, content=final_content, score=score)
-        db.add(rev)
+        return {
+            "id": sec.id,
+            "content": sec.content,
+            "version": sec.version,
+            "score": score,
+            "persisted": True,
+        }
 
-        sec.content = final_content
-        sec.version = version
-        sec.status = "refined"
-        db.add(sec)
-        db.commit()
-        db.refresh(sec)
-    except Exception:
-        logger.exception("Failed to persist refined content")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to save refined content")
+    # preview-only path (you aren’t using this yet, but it’s here)
+    return {
+        "id": sec.id,
+        "content": final_content,
+        "version": version,
+        "score": score,
+        "persisted": False,
+    }
 
-    return {"id": sec.id, "content": sec.content, "version": sec.version, "score": score, "persisted": True}
 
 
 

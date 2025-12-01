@@ -1,6 +1,8 @@
+// src/pages/Home.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import api from "../api";
 
 const heroVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -9,22 +11,72 @@ const heroVariants = {
 
 export default function Home() {
   const [docType, setDocType] = useState("docx");
+  const [title, setTitle] = useState("");
+  const [outline, setOutline] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleGenerateDraft = () => {
-    navigate(`/workspace?docType=${docType}`);
+  const handleGenerateDraft = async () => {
+    // If no title, just navigate to workspace without creating
+    if (!title.trim()) {
+      // fallback: open workspace in dev mode with docType query
+      navigate(`/workspace?docType=${docType}`);
+      return;
+    }
+
+    setLoading(true);
+    const token = localStorage.getItem("accessToken");
+
+    // Payload expected by your backend: { title, doc_type }
+    // you said you don't want to save summary/guidance here — but workspace expects a project.
+    // pass `context` as the outline so backend can use it when generating/initializing.
+    const payload = {
+      title: title.trim(),
+      doc_type: docType,
+      context: outline.trim() || undefined
+    };
+
+    try {
+      // If the user is authenticated, create project on backend and open workspace for returned id
+      if (token) {
+        const data = await api.postJSON("/projects/", payload, token);
+        if (data && data.id) {
+          // navigate to workspace with created project id
+          navigate(`/workspace/${data.id}`);
+          return;
+        }
+      }
+
+      // If unauthenticated or backend didn't return id, fall back to workspace query-mode
+      // We'll encode title + outline into query params (note: keep small)
+      const q = new URLSearchParams({
+        docType,
+        title: title.trim(),
+        context: outline.trim()
+      }).toString();
+      navigate(`/workspace?${q}`);
+    } catch (err) {
+      // If project creation failed, still open workspace in query-mode and log error
+      console.error("Create project failed — falling back to local workspace", err);
+      const q = new URLSearchParams({
+        docType,
+        title: title.trim(),
+        context: outline.trim()
+      }).toString();
+      navigate(`/workspace?${q}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#0e0f14]">
-
       {/* background glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 flex justify-center">
         <div className="h-[42rem] w-[42rem] rounded-full bg-blue-600/20 blur-[180px]" />
       </div>
 
       <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center px-6 pt-32 pb-20 text-center">
-
         <motion.h1
           variants={heroVariants}
           initial="hidden"
@@ -61,6 +113,8 @@ export default function Home() {
                   Title
                 </label>
                 <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   className="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
                   placeholder="e.g. Onboarding Guide for Sales"
                 />
@@ -70,6 +124,8 @@ export default function Home() {
                   Outline / Sections
                 </label>
                 <textarea
+                  value={outline}
+                  onChange={(e) => setOutline(e.target.value)}
                   rows={1}
                   className="h-full min-h-[48px] w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
                   placeholder="Enter Sections/Outline points here"
@@ -79,9 +135,9 @@ export default function Home() {
 
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div className="flex flex-col gap-3 md:w-64">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
-                Document type
-              </span>
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
+                  Document type
+                </span>
                 <div className="flex gap-2">
                   {[
                     { id: "docx", label: "DOCX" },
@@ -102,15 +158,18 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={handleGenerateDraft}
-                className="w-full rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500 md:w-48"
+                disabled={loading}
+                className="w-full rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500 md:w-48 disabled:opacity-60"
               >
-                Generate draft
+                {loading ? "Creating draft…" : "Generate draft"}
               </button>
             </div>
           </div>
+
           <p className="mt-3 text-xs text-gray-400 md:text-sm">
             No credit card required. Spin up a draft in seconds, then refine it with real-time AI suggestions.
           </p>
@@ -142,7 +201,6 @@ export default function Home() {
             </p>
           </div>
         </motion.div>
-
       </section>
     </div>
   );
