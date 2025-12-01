@@ -1,9 +1,12 @@
 import os
 import json
+from pathlib import Path
 import google.generativeai as genai
 from dotenv import load_dotenv  # if you're already using this elsewhere, it's fine
 
-# Load variables from .env into environment (no-op in production if already set there)
+# Load the local .env if it lives alongside the app package, then fall back to defaults
+package_dir = Path(__file__).resolve().parent.parent
+load_dotenv(package_dir / ".env")
 load_dotenv()
 
 # ✅ Read key from environment instead of hard-coding
