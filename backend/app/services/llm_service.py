@@ -1,9 +1,17 @@
+import os
 import json
-
 import google.generativeai as genai
+from dotenv import load_dotenv  # if you're already using this elsewhere, it's fine
 
-# ✅ LOCAL KEY — do NOT commit to GitHub
-GENAI_API_KEY = "AIzaSyCfvCVgAbUsMzk6SDqOdMs-ZohlgkQ5dFI"
+# Load variables from .env into environment (no-op in production if already set there)
+load_dotenv()
+
+# ✅ Read key from environment instead of hard-coding
+GENAI_API_KEY = os.getenv("GENAI_API_KEY")
+
+if not GENAI_API_KEY:
+    # Fail loudly so you know it's misconfigured rather than silently calling with None
+    raise RuntimeError("GENAI_API_KEY is not set. Please add it to your .env file.")
 
 genai.configure(api_key=GENAI_API_KEY)
 
